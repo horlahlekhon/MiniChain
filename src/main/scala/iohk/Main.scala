@@ -2,14 +2,14 @@ package iohk
 
 object Main extends App {
 
-  val link: FastBlockchain = new FastBlockchain
+  val link: FastBlockchain =  FastBlockchain()
 //  println(s"Targe leading hy seros: ${Miner.targetByLeadingZeros(1)}")
 //  val initBlock: Block = Miner.Genesis
   val gen = link.findByIndex(0).get
   val more = Miner.mineNextBlock(gen.index + 1, gen.cryptoHash, Seq(Transaction("Olake")), Miner.StdMiningTargetNumber )
 
 //  val nChain = FastBlockchain()
-//  println(nChain)
+  println(more)
   val app = link.append(more)
 //  println(app)
 

@@ -4,6 +4,7 @@ import iohk.Base.Unknown
 
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
+import scala.util.control.NoStackTrace
 
 // A Blockchain is a sequence of blocks, each one having an index.
 
@@ -47,13 +48,21 @@ sealed trait Blockchain {
 // The purpose of this internal data structure is to avoid traversing the linked list
 
 // of blocks when answering queries like findByIndex.
+case class InvalidIndex(msg: String) extends Exception(msg)
 
-case class FastBlockchain(private val chain: Vector[Block] = Vector(Miner.Genesis)) extends  Blockchain {
+case class FastBlockchain(private val chain: ArrayBuffer[Block] = ArrayBuffer(Miner.Genesis)) extends  Blockchain {
 
-  override def append(block: Block): FastBlockchain =  FastBlockchain(block +: chain)
+  override def append(block: Block): FastBlockchain = {
+    if(block.index != chain.last.index + 1){
+      throw  InvalidIndex(s"Please check the index. the last block here is at index: ${chain.last.index} so try ${chain.last.index + 1}")
+    }
+    else{
+      new FastBlockchain(chain.append(block))
+    }
+  }
 
 
-  override def findByIndex(index: Int): Option[Block] = chain.find(_.index == index)
+  override def findByIndex(index: Int): Option[Block] = Try(chain(index)).fold(ex => None, value => Some(value))
 
   override def findByHash(hash: Hash): Option[Block] = chain.find(_.cryptoHash.toNumber == hash.toNumber)
 
@@ -64,7 +73,7 @@ case class FastBlockchain(private val chain: Vector[Block] = Vector(Miner.Genesi
 }
 
 object FastBlockchain {
-  def apply(): FastBlockchain =  FastBlockchain(Vector(Miner.Genesis))
+  def apply(): FastBlockchain =  FastBlockchain(ArrayBuffer(Miner.Genesis))
 }
 
 

@@ -38,11 +38,11 @@ class BlockchainSpec extends AnyWordSpec with should.Matchers with OptionValues 
     ".findByHash" should {
       "Find an element by its Hash" in {
         val initialBlk = chain.findByIndex(0).value
-        val blk = Block(index = 1, parentHash = initialBlk.cryptoHash, transactions = Vector(Transaction("This is a second transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
+        val blk = Block(index = 2, parentHash = initialBlk.cryptoHash, transactions = Vector(Transaction("This is a second transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
         val app = chain.append(blk)
         val res = app.findByHash(blk.cryptoHash)
         res shouldBe defined
-        res.value.index shouldBe 1
+        res.value.index shouldBe 2
       }
     }
 
