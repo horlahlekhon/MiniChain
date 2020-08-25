@@ -7,7 +7,7 @@ object Sha256 {
 
   val NumberOfBytes = 32
 
-  val TheDigest = MessageDigest.getInstance("SHA-256")
+  val TheDigest: MessageDigest = MessageDigest.getInstance("SHA-256")
 
 
 

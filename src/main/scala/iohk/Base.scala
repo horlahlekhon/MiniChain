@@ -76,5 +76,7 @@ case class Hash(bytes: Bytes) {
 
   def toHexString: String = Base.toHexString(bytes)
 
+  override def toString: String = s"Hash(${toNumber})"
+
 }
 

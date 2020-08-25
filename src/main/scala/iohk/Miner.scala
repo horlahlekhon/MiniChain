@@ -1,7 +1,11 @@
 package iohk
 
+import java.lang.management.ManagementFactory
+import java.util.concurrent.{ExecutorService, Executors, ThreadPoolExecutor}
+
 import iohk.Base._
 
+import scala.collection.mutable
 import scala.util.Random
 
 object Miner {
@@ -114,41 +118,62 @@ object Miner {
 
   //      so we can talk about hash and number interchangeably.
 
-  def mineNextBlock(
 
-                     index: Int,
+  def mineNextBlock(index: Int, parentHash: Hash, transactions: Seq[Transaction], miningTargetNumber: BigInt): Block = {
+    val noncesBuffer: mutable.Queue[(Hash, Long)] = new mutable.Queue[(Hash, Long)]()
+    val bufferSize = 20
+    var nonceGotten = false
+    var validNonce: Option[Long] = None
 
-                     parentHash: Hash,
+    val pool = Executors.newFixedThreadPool(4)
+    def miner(): Unit =  {
+      while (!nonceGotten) noncesBuffer.synchronized{
+        if(bufferSize == noncesBuffer.size){
+          println("[Miner]... waiting buffer filled")
+          noncesBuffer.wait()
+        }
+        // some verifier should have dequeue at this point
+        val randome = new Random()
+        var nonce = randome.nextLong
+        val blk = Block(index, parentHash, transactions, miningTargetNumber, nonce)
+        println(s"[Miner]..producing: hash = ${blk.cryptoHash}\tNonce = ${nonce}")
+        noncesBuffer.enqueue((blk.cryptoHash, nonce))
+        nonce += 1
+        noncesBuffer.notify() // notify the verifier if it is waiting for us to compute
+      }
+    }
 
-                     transactions: Seq[Transaction],
+    def verifier(): Unit = {
+      while(!nonceGotten){
+        noncesBuffer.synchronized{
+          if (noncesBuffer.isEmpty){
+            println("[Verifier].. waiting for a value to be produced")
+            noncesBuffer.wait()
+          }
+          val (blockHash, nonce) = noncesBuffer.dequeue()
+          println(s"[Verifier]... Consumed : hash = ${blockHash} with \tNonce = ${nonce} ")
+          println(s"[Verifier].... verifying consumed hash ${blockHash.toNumber} less than $miningTargetNumber : ${blockHash.toNumber < miningTargetNumber} ")
+          if(blockHash.toNumber < miningTargetNumber){
+            println(s"[Verifier].. we Got our nonce... valid nonce: ${nonce}")
+            nonceGotten = true
+            validNonce = Some(nonce)
+          }
 
-                     miningTargetNumber: BigInt,
+          println(s"[verifier]...number of currently running threads: ${ManagementFactory.getThreadMXBean.getThreadCount}")
+          noncesBuffer.notify()
+        }
+      }
+    }
 
-                   ): Block = {
-    // Solve this informal inequality for nonce:
-
-    //
-
-    //   Hash(block; nonce).toNumber < miningTargetNumber
-
-    //
-
-    // where Hash(block; nonce) is a function of nonce only, all the other block
-    import scala.util.control.Breaks._
-    // field values are just the given method arguments.
-    var nonce = targetByLeadingZeros(Random.nextInt(2))
-    var blk = Block(index, parentHash, transactions, miningTargetNumber, targetByLeadingZeros(1).toLong)
-////    var pi =  1
-//    while(blk.cryptoHash.toNumber > miningTargetNumber){
-//       nonce = targetByLeadingZeros(31)
-//      println(s"hash : ${blk.cryptoHash.toNumber}..... is there a hit: ${blk.cryptoHash.toNumber < miningTargetNumber}.... pow : ${miningTargetNumber}")
-//       blk = blk.copy(nonce = nonce.toLong)
-//    }
-//    BigInt
-
-    blk
-
+    pool.execute(() => verifier())
+    pool.execute(() => miner())
+    pool.execute(() => verifier())
+    pool.execute(() => miner())
+    Block(index, parentHash, transactions, miningTargetNumber, validNonce.getOrElse(0))
   }
+
+  def numberOfLeadingZeros(amount: Int, hash: Hash): Boolean = hash.bytes.count(_.toChar == '0') == amount
+
 
 }
 

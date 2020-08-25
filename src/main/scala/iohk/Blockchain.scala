@@ -2,10 +2,11 @@ package iohk
 
 import iohk.Base.Unknown
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 import scala.util.control.NoStackTrace
-
+import Miner._
 // A Blockchain is a sequence of blocks, each one having an index.
 
 // The index of a block is the index of its parent plus one.
@@ -48,32 +49,54 @@ sealed trait Blockchain {
 // The purpose of this internal data structure is to avoid traversing the linked list
 
 // of blocks when answering queries like findByIndex.
-case class InvalidIndex(msg: String) extends Exception(msg)
+case class InvalidBlock(msg: String) extends Exception(msg)
 
 case class FastBlockchain(private val chain: ArrayBuffer[Block] = ArrayBuffer(Miner.Genesis)) extends  Blockchain {
-
+   var hashIndexMapping: mutable.Map[Number, Int] = mutable.Map.empty[Number, Int]
   override def append(block: Block): FastBlockchain = {
-    if(block.index != chain.last.index + 1){
-      throw  InvalidIndex(s"Please check the index. the last block here is at index: ${chain.last.index} so try ${chain.last.index + 1}")
+    if(block.index != chain.last.index + 1 || block.parentHash.toNumber != chain.last.cryptoHash.toNumber){
+      throw  InvalidBlock(s"Please check the block's hash and index to be properly aligned." +
+        s"""
+           |Last block in the chain hash: ${chain.last.cryptoHash.toNumber}
+           |newBlock parenthash: ${block.parentHash.toNumber}
+           |""".stripMargin)
     }
     else{
-      new FastBlockchain(chain.append(block))
+      val nChain  = new FastBlockchain(chain.append(block))
+      nChain.hashIndexMapping.put(block.cryptoHash.toNumber, block.index)
+      nChain
     }
   }
 
 
   override def findByIndex(index: Int): Option[Block] = Try(chain(index)).fold(ex => None, value => Some(value))
 
-  override def findByHash(hash: Hash): Option[Block] = chain.find(_.cryptoHash.toNumber == hash.toNumber)
+  override def findByHash(hash: Hash): Option[Block] = {
+    hashIndexMapping.get(hash.toNumber) match {
+      case Some(value) => Some(chain(value))
+      case None => None
+    }
+  }
 
+  /// I didnt implement because i dont understand if two blockchains can
+  // be related such as having ancestors, please i will appreciate an insight into this
   override def common_ancestor(that: Blockchain): Unknown = ???
+
+  def length: Int = chain.length
+
+  def lastBlock: Block = chain.last
 
   override def toString: String = s"FastBlockchain(chain = ${chain})"
 
 }
 
 object FastBlockchain {
-  def apply(): FastBlockchain =  FastBlockchain(ArrayBuffer(Miner.Genesis))
+  def apply(): FastBlockchain = {
+    val initBlock = Miner.Genesis
+    val chain  = FastBlockchain(ArrayBuffer(initBlock))
+    chain.hashIndexMapping.put(initBlock.cryptoHash.toNumber, initBlock.index)
+    chain
+  }
 }
 
 

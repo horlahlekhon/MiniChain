@@ -12,7 +12,8 @@ class BlockchainSpec extends AnyWordSpec with should.Matchers with OptionValues 
     ".apply" should {
       "Initialize the chain with a Genesis block" in {
         val genesis = chain.findByIndex(0)
-        genesis.value.parentHash.toNumber shouldBe Sha256.Zero_Hash.toNumber       }
+        genesis.value.parentHash.toNumber shouldBe Sha256.Zero_Hash.toNumber
+      }
       }
 
     ".findByIndex" should {
@@ -26,19 +27,26 @@ class BlockchainSpec extends AnyWordSpec with should.Matchers with OptionValues 
 
     ".append" should {
       "add anew block to the chain" in {
-        val initialBlk = chain.findByIndex(0).value
+        val initialBlk = chain.lastBlock
         val blk = Block(index = 1, parentHash = initialBlk.cryptoHash, transactions = Vector(Transaction("This is a transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
         val app = chain.append(blk)
         val second = app.findByIndex(1)
         val first = chain.findByIndex(0).value
         second.value.parentHash.toNumber shouldBe first.cryptoHash.toNumber
       }
+      "Reject appending a block with invalid index or hash" in {
+        assertThrows[InvalidBlock]{
+          val initialBlk = chain.lastBlock
+          val blk = Block(index = 5, parentHash = initialBlk.cryptoHash, transactions = Vector(Transaction("This is a transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
+          chain.append(blk)
+        }
+      }
     }
 
     ".findByHash" should {
       "Find an element by its Hash" in {
-        val initialBlk = chain.findByIndex(0).value
-        val blk = Block(index = 2, parentHash = initialBlk.cryptoHash, transactions = Vector(Transaction("This is a second transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
+        val last = chain.lastBlock
+        val blk = Block(index = last.index + 1, parentHash = last.cryptoHash, transactions = Vector(Transaction("This is a second transaction")), Miner.StdMiningTargetNumber,  Miner.targetByLeadingZeros(3).toLong)
         val app = chain.append(blk)
         val res = app.findByHash(blk.cryptoHash)
         res shouldBe defined
