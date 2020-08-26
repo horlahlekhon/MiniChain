@@ -129,14 +129,12 @@ object Miner {
     def miner(): Unit =  {
       while (!nonceGotten) noncesBuffer.synchronized{
         if(bufferSize == noncesBuffer.size){
-          println("[Miner]... waiting buffer filled")
           noncesBuffer.wait()
         }
         // some verifier should have dequeue at this point
         val randome = new Random()
         var nonce = randome.nextLong
         val blk = Block(index, parentHash, transactions, miningTargetNumber, nonce)
-        println(s"[Miner]..producing: hash = ${blk.cryptoHash}\tNonce = ${nonce}")
         noncesBuffer.enqueue((blk.cryptoHash, nonce))
         nonce += 1
         noncesBuffer.notify() // notify the verifier if it is waiting for us to compute
@@ -147,7 +145,6 @@ object Miner {
       while(!nonceGotten){
         noncesBuffer.synchronized{
           if (noncesBuffer.isEmpty){
-            println("[Verifier].. waiting for a value to be produced")
             noncesBuffer.wait()
           }
           val (blockHash, nonce) = noncesBuffer.dequeue()
@@ -157,9 +154,8 @@ object Miner {
             println(s"[Verifier].. we Got our nonce... valid nonce: ${nonce}")
             nonceGotten = true
             validNonce = Some(nonce)
+            pool.shutdown()
           }
-
-          println(s"[verifier]...number of currently running threads: ${ManagementFactory.getThreadMXBean.getThreadCount}")
           noncesBuffer.notify()
         }
       }
@@ -167,8 +163,7 @@ object Miner {
 
     pool.execute(() => verifier())
     pool.execute(() => miner())
-    pool.execute(() => verifier())
-    pool.execute(() => miner())
+
     Block(index, parentHash, transactions, miningTargetNumber, validNonce.getOrElse(0))
   }
 
